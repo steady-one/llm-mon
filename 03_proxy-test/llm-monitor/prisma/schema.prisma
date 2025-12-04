@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 조직 (고객사)
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String   // bcrypt 해시
+  createdAt DateTime @default(now())
+
+  monitorTokens       MonitorToken[]
+  apiKeys             ApiKey[]
+  balance             Balance?
+  usageLogs           UsageLog[]
+  balanceTransactions BalanceTransaction[]
+}
+
+// Monitor Token (Pass-through 방식용)
+model MonitorToken {
+  id          String    @id @default(cuid())
+  orgId       String
+  tokenHash   String    // bcrypt 해시
+  tokenPrefix String    // mon_sk_xxxx (표시용)
+  name        String?
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@index([tokenHash])
+}
+
+// API Key (Reseller 방식용)
+model ApiKey {
+  id        String   @id @default(cuid())
+  orgId     String
+  keyHash   String   // SHA-256 해시
+  keyPrefix String   // llm_sk_xxxx (표시용)
+  name      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  usageLogs    UsageLog[]
+  @@index([keyHash])
+}
+
+// 잔액 (Reseller용)
+model Balance {
+  id        String   @id @default(cuid())
+  orgId     String   @unique
+  amount    Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// 잔액 변동 이력
+model BalanceTransaction {
+  id           String   @id @default(cuid())
+  orgId        String
+  type         String   // 'charge', 'usage'
+  amount       Float
+  balanceAfter Float
+  description  String?
+  createdAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// 사용량 로그 (Pass-through + Reseller 공용)
+model UsageLog {
+  id            String   @id @default(cuid())
+  orgId         String
+  apiKeyId      String?  // Reseller 모드에서만 사용
+  provider      String   // 'openai', 'anthropic', 'google', 'xai'
+  model         String
+  inputTokens   Int
+  outputTokens  Int
+  providerCost  Float?   // Reseller: Provider 원가
+  margin        Float?   // Reseller: 마진
+  totalCost     Float?   // Reseller: 청구액
+  estimatedCost Float?   // Pass-through: 예상 비용
+  endpoint      String?
+  isStreaming   Boolean  @default(false)
+  latencyMs     Int?
+  statusCode    Int?
+  mode          String   @default("passthrough") // 'passthrough' or 'reseller'
+  requestedAt   DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, requestedAt])
+  @@index([provider, model])
+}
+
+// 가격 테이블
+model Pricing {
+  id               String   @id @default(cuid())
+  provider         String
+  model            String
+  inputPricePer1m  Float    // 1M 토큰당 입력 가격 (USD)
+  outputPricePer1m Float    // 1M 토큰당 출력 가격 (USD)
+  effectiveDate    DateTime
+
+  @@unique([provider, model, effectiveDate])
+}

@@ -1,0 +1,36 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  id        String   @id @default(cuid())
+  provider  String   @unique // "openai"
+  apiKey    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UsageData {
+  id           String   @id @default(cuid())
+  provider     String
+  periodStart  DateTime
+  periodEnd    DateTime
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  totalTokens  Int
+  cost         Float
+  requestCount Int
+  createdAt    DateTime @default(now())
+
+  @@index([provider])
+  @@index([periodStart])
+}

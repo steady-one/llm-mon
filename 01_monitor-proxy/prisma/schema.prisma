@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+
+  tokens    MonitorToken[]
+  usageLogs UsageLog[]
+}
+
+model MonitorToken {
+  id          String    @id @default(cuid())
+  orgId       String
+  tokenHash   String
+  tokenPrefix String
+  name        String?
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+}
+
+model UsageLog {
+  id            String   @id @default(cuid())
+  orgId         String
+  provider      String
+  model         String
+  inputTokens   Int
+  outputTokens  Int
+  estimatedCost Float?
+  endpoint      String?
+  isStreaming   Boolean  @default(false)
+  latencyMs     Int?
+  statusCode    Int?
+  requestedAt   DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, requestedAt])
+  @@index([provider, model])
+}
+
+model Pricing {
+  id               String   @id @default(cuid())
+  provider         String
+  model            String
+  inputPricePer1m  Float
+  outputPricePer1m Float
+  effectiveDate    DateTime
+
+  @@unique([provider, model, effectiveDate])
+}

@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 조직 (고객사)
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String
+  createdAt   DateTime @default(now())
+
+  apiKeys              ApiKey[]
+  balance              Balance?
+  usageLogs            UsageLog[]
+  balanceTransactions  BalanceTransaction[]
+}
+
+// API Keys - 고객에게 발급하는 통합 키
+model ApiKey {
+  id         String   @id @default(cuid())
+  orgId      String
+  keyHash    String
+  keyPrefix  String
+  name       String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  usageLogs   UsageLog[]
+}
+
+// 잔액 (선불)
+model Balance {
+  id        String   @id @default(cuid())
+  orgId     String   @unique
+  amount    Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// 잔액 변동 이력
+model BalanceTransaction {
+  id           String   @id @default(cuid())
+  orgId        String
+  type         String
+  amount       Float
+  balanceAfter Float
+  description  String?
+  createdAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// 사용량 로그
+model UsageLog {
+  id             String   @id @default(cuid())
+  orgId          String
+  apiKeyId       String?
+  model          String
+  inputTokens    Int
+  outputTokens   Int
+  providerCost   Float
+  margin         Float
+  totalCost      Float
+  latencyMs      Int?
+  requestedAt    DateTime @default(now())
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  apiKey         ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+}
